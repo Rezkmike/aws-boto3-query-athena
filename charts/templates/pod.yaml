@@ -1,0 +1,59 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  name: athena-query-pod
+  annotations:
+    eks.amazonaws.com/token-expiration: "600"
+spec:
+  serviceAccountName: <SA-NAME>
+  containers:
+  - name: python-container
+    image: kemilioo/python-boto3
+    command: ["python", "/app/query_athena.py"]
+    env:
+      - name: AWS_ROLE_ARN
+        value: "arn:aws:iam::<ACCOUNT-ID-A>:role/<ROLE-A>"
+      - name: AWS_DEFAULT_REGION
+        value: "ap-southeast-1"
+      - name: AWS_WEB_IDENTITY_TOKEN_FILE
+        value: "/var/run/secrets/eks.amazonaws.com/serviceaccount/token"
+      - name: AWS_STS_REGIONAL_ENDPOINTS
+        value: "regional"
+    volumeMounts:
+    - name: python-script
+      mountPath: "/app/query_athena.py"
+      subPath: query_athena.py
+    - mountPath: "/var/run/secrets/eks.amazonaws.com/serviceaccount/"
+      name: aws-token
+  volumes:
+    - name: python-script
+      configMap:
+        name: athena-query-script
+        items:
+        - key: "query_athena.py"
+          path: "query_athena.py"
+    - name: aws-token
+      projected:
+        sources:
+        - serviceAccountToken:
+            audience: "sts.amazonaws.com"
+            expirationSeconds: 600
+            path: token
+  restartPolicy: Never
+
+# apiVersion: v1
+# kind: Pod
+# metadata:
+#   name: athena-query-pod-debug
+# spec:
+#   serviceAccountName: athena-service-account
+#   containers:
+#   - name: python-container-debug
+#     image: python:3.9-alpine
+#     command: ["sh", "-c"]
+#     args:
+#     - >
+#       echo "AWS_ROLE_ARN: $AWS_ROLE_ARN" &&
+#       echo "AWS_WEB_IDENTITY_TOKEN_FILE: $AWS_WEB_IDENTITY_TOKEN_FILE" &&
+#       cat $AWS_WEB_IDENTITY_TOKEN_FILE && sleep 3600
+#   restartPolicy: Never

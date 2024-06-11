@@ -1,0 +1,54 @@
+import boto3
+from botocore.exceptions import ClientError
+
+# Parameters
+ROLE_ARN = "arn:aws:iam::<ACCT-ID-B>:role/<ROLE-A>"
+DATABASE = '<DB>'
+QUERY = 'SELECT * FROM "<DB>"."<TABLE>" limit 10;'
+S3_OUTPUT = 's3://<BUCKET-NAME>/output/'
+
+def assume_role(arn):
+    try:
+        # Create an STS client using the default credentials provided to the pod
+        sts_client = boto3.client('sts')
+        assumed_role = sts_client.assume_role(
+            RoleArn=arn,
+            RoleSessionName="AssumedRoleSession"
+        )
+        return assumed_role['Credentials']
+    except ClientError as e:
+        print(f"Failed to assume role: {e}")
+        return None
+
+def query_athena(query, database, s3_output, credentials):
+    try:
+        # Create a new session using the assumed role's credentials
+        session = boto3.Session(
+            aws_access_key_id=credentials['AccessKeyId'],
+            aws_secret_access_key=credentials['SecretAccessKey'],
+            aws_session_token=credentials['SessionToken'],
+        )
+        athena_client = session.client('athena')
+        
+        response = athena_client.start_query_execution(
+            QueryString=query,
+            QueryExecutionContext={
+                'Database': database
+            },
+            ResultConfiguration={
+                'OutputLocation': s3_output
+            }
+        )
+        return response
+    except ClientError as e:
+        print(f"Failed to query Athena: {e}")
+        return None
+
+def main():
+    credentials = assume_role(ROLE_ARN)
+    if credentials:
+        response = query_athena(QUERY, DATABASE, S3_OUTPUT, credentials)
+        print("Query execution ID:", response['QueryExecutionId'])
+
+if __name__ == "__main__":
+    main()

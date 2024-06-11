@@ -1,0 +1,10 @@
+# Use an official Python runtime as a parent image
+FROM python:3.9-alpine
+
+# Install any needed packages specified in requirements.txt
+# We include ca-certificates and gcc to ensure proper SSL and compilation of certain Python packages
+RUN apk --no-cache add gcc musl-dev libffi-dev openssl-dev
+RUN pip install --upgrade pip
+
+# Install boto3 for AWS operations
+RUN pip install boto3
